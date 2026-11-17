@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opportunities House – Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f6f4ee;--cd:#fff;--tx:#12231a;--mu:#5c6d63;--br:#e4e0d3;--p:#0a6b3b;--p2:#e6f3ea;--rd:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1511;--cd:#16211b;--tx:#eef4f0;--mu:#9db0a5;--br:#27372d;--p:#38c077;--p2:#13301f;--rd:#ff8a7a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.w{max-width:1100px;margin:auto;padding:16px}
+button,select,input,textarea{font:inherit;color:var(--tx)}
+.b{background:var(--p);color:#fff;border:0;border-radius:9px;padding:8px 14px;cursor:pointer;font-weight:600}
+.g{background:var(--cd);border:1px solid var(--br);border-radius:9px;padding:7px 12px;cursor:pointer}.g.d{color:var(--rd)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.top h1{margin:0;font-size:20px;color:var(--p)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.tabs button{border:1px solid var(--br);background:var(--cd);border-radius:20px;padding:7px 14px;cursor:pointer}.tabs button.on{background:var(--p);color:#fff;border-color:var(--p)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.cards div{background:var(--cd);border:1px solid var(--br);border-radius:14px;padding:16px}.cards b{font-size:28px;color:var(--p);display:block}
+.box{background:var(--cd);border:1px solid var(--br);border-radius:14px;padding:16px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mu);margin-top:8px;font-weight:600}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--br);border-radius:8px;background:var(--bg)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+table{width:100%;border-collapse:collapse;background:var(--cd);border:1px solid var(--br);border-radius:12px;overflow:hidden}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--br);vertical-align:top;font-size:14px}th{background:var(--p2);color:var(--p)}
+.sc{overflow-x:auto}.tg{font-size:12px;border-radius:6px;padding:2px 8px;background:var(--p2);color:var(--p);font-weight:700;white-space:nowrap}
+.row{display:flex;gap:6px;flex-wrap:wrap}.hid{display:none}.err{color:var(--rd);margin-top:8px}
+#login{max-width:380px;margin:12vh auto}
+@media(max-width:640px){.two{grid-template-columns:1fr}}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}.mb{background:var(--cd);color:var(--tx);border:1px solid var(--br);border-radius:16px;padding:16px;width:100%;max-width:540px;max-height:92vh;overflow:auto}.mb textarea{line-height:1.45}
+</style><link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"></head><body>
+<div class="w">
+<div id="login" class="box"><h1 style="margin-top:0;color:var(--p)"><img src="logo.png" alt="" width="34" height="34" style="width:34px;height:34px;vertical-align:middle;margin-right:8px">Opportunities House Admin</h1>
+<label>Email</label><input id="em" type="email" autocomplete="username"><label>Password</label><input id="pw" type="password" autocomplete="current-password">
+<div class="row" style="margin-top:14px"><button class="b" onclick="signIn()">Sign in</button></div><div class="err" id="le"></div></div>
+
+<div id="app" class="hid">
+<div class="top"><h1><img src="logo.png" alt="" width="34" height="34" style="width:34px;height:34px;vertical-align:middle;margin-right:8px">Opportunities House Admin</h1><div class="row"><span id="who" style="color:var(--mu);align-self:center"></span><button class="g" onclick="sb.auth.signOut().then(()=>location.reload())">Sign out</button></div></div>
+<div class="tabs" id="tabs"></div><div id="main"></div></div>
+</div>
+
+<script src="config.js"></script>
+<script>
+
+
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const CATS=["job","scholarship","internship","fellowship","grant","training"],LV=["any","undergraduate","graduate","postgraduate","professional"],ST=["draft","pending","published","expired","rejected"];
+const STATES=["Nationwide","Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno","Cross River","Delta","Ebonyi","Edo","Ekiti","Enugu","FCT Abuja","Gombe","Imo","Jigawa","Kaduna","Kano","Katsina","Kebbi","Kogi","Kwara","Lagos","Nasarawa","Niger","Ogun","Ondo","Osun","Oyo","Plateau","Rivers","Sokoto","Taraba","Yobe","Zamfara"];
+let me=null,tab="over",opps=[],editing=null;
+const opt=(a,v)=>a.map(x=>`<option${x==v?" selected":""}>${esc(x)}</option>`).join("");
+
+async function signIn(){
+  $("le").textContent="";
+  const {error}=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});
+  if(error){$("le").textContent=error.message;return}
+  init();
+}
+async function init(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session)return;
+  const {data:p}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
+  if(!p||!["owner","editor","moderator"].includes(p.role)){
+    $("le").textContent="This account does not have admin access. Ask the owner to give you a staff role.";
+    await sb.auth.signOut();return}
+  me=p;$("login").classList.add("hid");$("app").classList.remove("hid");
+  $("who").textContent=p.username+" · "+p.role;go("over");
+}
+function go(t){
+  tab=t;const T=[["over","Overview"],["opps","Opportunities"],["rep","Reports"],["sub","Subscribers"],["an","Analytics"]];
+  if(me.role=="owner")T.push(["team","Team"]);
+  $("tabs").innerHTML=T.map(x=>`<button class="${x[0]==t?"on":""}" onclick="go('${x[0]}')">${x[1]}</button>`).join("");
+  ({over:viewOver,opps:viewOpps,rep:viewRep,sub:viewSub,an:viewAn,team:viewTeam})[t]();
+}
+async function log(action,target){await sb.from("audit_log").insert({actor:me.id,action,target:String(target||"")})}
+const cnt=async(q)=>{const {count}=await q;return count||0};
+
+async function viewOver(){
+  const H=(f)=>sb.from("opportunities").select("*",{count:"exact",head:true});
+  const [a,b,c,d,e]=await Promise.all([
+    cnt(H().eq("status","published")),cnt(H().eq("status","pending")),cnt(H().eq("status","expired")),
+    cnt(sb.from("reports").select("*",{count:"exact",head:true}).eq("status","open")),
+    cnt(sb.from("subscribers").select("*",{count:"exact",head:true}))]);
+  $("main").innerHTML=`<div class="cards"><div><b>${a}</b>Published</div><div><b>${b}</b>Pending</div><div><b>${c}</b>Expired</div><div><b>${d}</b>Open reports</div><div><b>${e}</b>Subscribers</div></div>
+  <div class="box" style="margin-top:12px"><button class="b" onclick="go('opps');newOpp()">+ New opportunity</button> <button class="g" onclick="expireOld()">Expire past-deadline listings</button> <button class="g" onclick="dlSitemap()">Download sitemap.xml</button></div>`;
+}
+async function expireOld(){
+  const today=new Date().toISOString().slice(0,10);
+  const {error}=await sb.from("opportunities").update({status:"expired"}).eq("status","published").lt("deadline",today);
+  if(error)return alert(error.message);await log("expire_old","");alert("Done");go("over")}
+
+async function viewOpps(){
+  const {data,error}=await sb.from("opportunities").select("*").order("created_at",{ascending:false}).limit(300);
+  if(error){$("main").innerHTML='<div class="err">'+esc(error.message)+"</div>";return}
+  opps=data;
+  $("main").innerHTML=`<div class="row" style="margin-bottom:10px"><button class="b" onclick="newOpp()">+ New opportunity</button><input id="fq" placeholder="Search title or organisation" oninput="list()" style="max-width:260px"><select id="fs" onchange="list()" style="max-width:160px"><option value="">All statuses</option>${opt(ST)}</select></div><div id="form"></div><div class="sc" id="lst"></div>`;
+  list();
+}
+function list(){
+  const q=($("fq").value||"").toLowerCase(),s=$("fs").value;
+  const r=opps.filter(o=>(!s||o.status==s)&&((o.title||"")+(o.org_name||"")).toLowerCase().includes(q));
+  $("lst").innerHTML=`<table><tr><th>Title</th><th>Type</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>`+(r.map(o=>`<tr><td><b>${esc(o.title)}</b><br><small>${[o.org_name,o.state].filter(Boolean).map(esc).join(" · ")}</small></td><td><span class="tg">${esc(o.category)}</span></td><td>${esc(o.deadline||"-")}</td><td><span class="tg">${esc(o.status)}</span>${o.verified?' <span class="tg">✔</span>':""}${o.featured?' <span class="tg">★</span>':""}</td><td><div class="row"><button class="g" onclick="editOpp('${o.id}')">Edit</button>${o.status=="published"?`<button class="g" onclick="waPost('${o.id}')">📋 WhatsApp post</button>`:""}<button class="g" onclick="setSt('${o.id}','${o.status=="published"?"draft":"published"}')">${o.status=="published"?"Unpublish":"Publish"}</button><button class="g" onclick="flag('${o.id}','verified',${!o.verified})">Verify</button><button class="g" onclick="flag('${o.id}','featured',${!o.featured})">Feature</button><button class="g d" onclick="del('${o.id}')">Delete</button></div></td></tr>`).join("")||`<tr><td colspan="5">No listings yet.</td></tr>`)+"</table>";
+}
+const WIC={job:"💼",scholarship:"🎓",internship:"🧑‍💻",fellowship:"🌍",grant:"💰",training:"📚"};
+function waText(o){
+  const base=SITE_URL.replace(/\/$/,""),link=base+"/?o="+encodeURIComponent(o.slug)+"&utm_source=whatsapp&utm_medium=channel";
+  const short=(t,n)=>{t=String(t||"").replace(/\s+/g," ").trim();return t.length>n?t.slice(0,n-1).replace(/\s+\S*$/,"")+"…":t};
+  const L=[(WIC[o.category]||"🔔")+" *"+String(o.title||"").replace(/\*/g,"").trim()+"*"];
+  if(o.org_name)L.push("🏢 "+o.org_name);
+  const where=[o.state,o.level&&o.level!="any"?o.level[0].toUpperCase()+o.level.slice(1):""].filter(Boolean).join(" · ");
+  if(where)L.push("📍 "+where);
+  if(o.deadline)L.push("⏳ Deadline: "+new Date(o.deadline+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}));
+  if(o.summary)L.push("",short(o.summary,220));
+  if(o.eligibility)L.push("","✅ *Who can apply:* "+short(String(o.eligibility).replace(/^\s*eligibility\s*:?\s*/i,""),150));
+  L.push("","👉 *Full details & how to apply:*",link,"","⚠️ Never pay to apply for a job or scholarship.");
+  if(typeof CFG!=="undefined"&&CFG.channel)L.push("","📢 Follow Opportunities House: "+CFG.channel);
+  return L.join("\n")}
+function waPost(id){
+  const o=opps.find(x=>x.id==id);if(!o)return;
+  const m=document.createElement("div");m.className="mo";
+  m.innerHTML='<div class="mb"><b>WhatsApp post</b><p style="margin:4px 0 8px;color:var(--mu);font-size:13px">Edit it if you like, then tap Copy and paste it into your channel.</p><textarea id="wat" rows="15"></textarea><div class="row" style="margin-top:10px"><button class="b" id="wac">Copy post</button><button class="g" id="wax">Close</button></div><div id="wam" style="margin-top:8px;color:var(--p);font-weight:600"></div></div>';
+  document.body.appendChild(m);
+  const t=m.querySelector("#wat");t.value=waText(o);
+  m.querySelector("#wax").onclick=()=>m.remove();
+  m.addEventListener("click",e=>{if(e.target==m)m.remove()});
+  m.querySelector("#wac").onclick=async()=>{
+    try{await navigator.clipboard.writeText(t.value)}catch(e){t.select();t.setSelectionRange(0,99999);document.execCommand("copy")}
+    m.querySelector("#wam").textContent="Copied. Now paste it into your WhatsApp channel."}}
+function newOpp(){editing=null;formOpp({})}
+function editOpp(id){editing=id;formOpp(opps.find(o=>o.id==id))}
+function formOpp(o){
+  $("form").innerHTML=`<div class="box"><b>${editing?"Edit":"New"} opportunity</b>
+  <label>Title (required)</label><input id="f_t" value="${esc(o.title)}">
+  <div class="two"><div><label>Organisation (optional)</label><input id="f_o" value="${esc(o.org_name)}"></div><div><label>Official apply link (optional)</label><input id="f_u" value="${esc(o.apply_url)}" placeholder="https://"></div></div>
+  <div class="two"><div><label>Category</label><select id="f_c">${opt(CATS,o.category)}</select></div><div><label>State (Nationwide if not stated)</label><select id="f_s">${opt(STATES,o.state)}</select></div></div>
+  <div class="two"><div><label>Level (Any if not stated)</label><select id="f_l">${opt(LV,o.level)}</select></div><div><label>Deadline (optional, leave empty if none)</label><input id="f_d" type="date" value="${esc(o.deadline)}"></div></div>
+  <label>Summary (optional)</label><textarea id="f_m" rows="3">${esc(o.summary)}</textarea>
+  <label>Eligibility (optional)</label><textarea id="f_e" rows="3">${esc(o.eligibility)}</textarea>
+  <label>How to apply (optional)</label><textarea id="f_h" rows="3">${esc(o.how_to_apply)}</textarea>
+  <label>Status</label><select id="f_st">${opt(ST,o.status||"published")}</select>
+  <div class="row" style="margin-top:12px"><button class="b" onclick="saveOpp()">Save</button><button class="g" onclick="$('form').innerHTML=''">Cancel</button></div><div class="err" id="fe"></div></div>`;
+  window.scrollTo(0,0)}
+async function saveOpp(){
+  const u=$("f_u").value.trim();
+  if(!$("f_t").value.trim()){$("fe").textContent="Please enter a title. Everything else is optional.";return}
+  if(u&&!/^https?:\/\//.test(u)){$("fe").textContent="Apply link must start with https://";return}
+  const row={title:$("f_t").value.trim(),org_name:$("f_o").value.trim(),apply_url:u,category:$("f_c").value,state:$("f_s").value,level:$("f_l").value,deadline:$("f_d").value||null,summary:$("f_m").value,eligibility:$("f_e").value,how_to_apply:$("f_h").value,status:$("f_st").value};
+  if(editing&&row.status=="published"){const old=opps.find(o=>o.id==editing);if(!old||old.status!="published")row.published_at=new Date().toISOString()}
+  let r;
+  if(editing){r=await sb.from("opportunities").update(row).eq("id",editing)}
+  else{row.slug=row.title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,70)+"-"+Math.random().toString(36).slice(2,6);row.created_by=me.id;if(row.status=="published")row.published_at=new Date().toISOString();r=await sb.from("opportunities").insert(row)}
+  if(r.error){$("fe").textContent=r.error.message;return}
+  await log(editing?"edit":"create",row.title);viewOpps()}
+async function setSt(id,s){const r=await sb.from("opportunities").update({status:s,published_at:s=="published"?new Date().toISOString():null}).eq("id",id);if(r.error)return alert(r.error.message);await log("status:"+s,id);viewOpps()}
+async function flag(id,f,v){const r=await sb.from("opportunities").update({[f]:v}).eq("id",id);if(r.error)return alert(r.error.message);await log(f+":"+v,id);viewOpps()}
+async function del(id){if(!confirm("Delete this listing permanently?"))return;const r=await sb.from("opportunities").delete().eq("id",id);if(r.error)return alert(r.error.message);await log("delete",id);viewOpps()}
+
+async function viewRep(){
+  const {data,error}=await sb.from("reports").select("*,opportunities(id,title)").eq("status","open").order("created_at",{ascending:false});
+  if(error){$("main").innerHTML='<div class="err">'+esc(error.message)+"</div>";return}
+  $("main").innerHTML=`<div class="sc"><table><tr><th>Listing</th><th>Reason</th><th>Details</th><th>Actions</th></tr>`+(data.map(r=>`<tr><td>${esc(r.opportunities&&r.opportunities.title)}</td><td>${esc(r.reason)}</td><td>${esc(r.details)}</td><td><div class="row"><button class="g d" onclick="takedown('${r.id}','${r.opportunities?r.opportunities.id:""}')">Take down</button><button class="g" onclick="resolve('${r.id}')">Dismiss</button></div></td></tr>`).join("")||`<tr><td colspan="4">No open reports.</td></tr>`)+"</table></div>"}
+async function resolve(id){await sb.from("reports").update({status:"resolved"}).eq("id",id);await log("report_resolved",id);viewRep()}
+async function takedown(rid,oid){if(oid)await sb.from("opportunities").update({status:"rejected"}).eq("id",oid);await resolve(rid)}
+
+async function viewSub(){
+  const {data,error}=await sb.from("subscribers").select("*").order("created_at",{ascending:false}).limit(1000);
+  if(error){$("main").innerHTML='<div class="err">'+esc(error.message)+"</div>";return}
+  window._subs=data;
+  $("main").innerHTML=`<div class="row" style="margin-bottom:10px"><button class="b" onclick="csv()">Export CSV</button></div><div class="sc"><table><tr><th>Email</th><th>WhatsApp</th><th>States</th><th>Categories</th><th>Joined</th></tr>`+(data.map(s=>`<tr><td>${esc(s.email)}</td><td>${esc(s.whatsapp)}</td><td>${esc((s.states||[]).join(", "))}</td><td>${esc((s.categories||[]).join(", "))}</td><td>${esc((s.created_at||"").slice(0,10))}</td></tr>`).join("")||`<tr><td colspan="5">No subscribers yet.</td></tr>`)+"</table></div>"}
+function csv(){const rows=[["email","whatsapp","states","categories","joined"]].concat(window._subs.map(s=>[s.email||"",s.whatsapp||"",(s.states||[]).join("|"),(s.categories||[]).join("|"),(s.created_at||"").slice(0,10)]));
+  const t=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/csv"}));a.download="subscribers.csv";a.click()}
+
+async function viewAn(){
+  const since=new Date(Date.now()-30*864e5).toISOString();
+  const {data,error}=await sb.from("events").select("type,opportunity_id,query,created_at").gte("created_at",since).order("created_at",{ascending:false}).limit(5000);
+  if(error){$("main").innerHTML='<div class="err">'+esc(error.message)+"</div>";return}
+  const c=t=>data.filter(e=>e.type==t),v=c("view"),a=c("apply"),s=c("share"),n=c("nosearch");
+  const tally=(arr,f)=>{const m={};arr.forEach(e=>{const k=f(e);if(k)m[k]=(m[k]||0)+1});return Object.entries(m).sort((x,y)=>y[1]-x[1]).slice(0,10)};
+  const top=tally(v,e=>e.opportunity_id),ids=top.map(x=>x[0]),names={};
+  if(ids.length){const r=await sb.from("opportunities").select("id,title").in("id",ids);(r.data||[]).forEach(o=>names[o.id]=o.title)}
+  const ap={};a.forEach(e=>ap[e.opportunity_id]=(ap[e.opportunity_id]||0)+1);
+  const days={};for(let i=13;i>=0;i--)days[new Date(Date.now()-i*864e5).toISOString().slice(0,10)]=0;
+  v.forEach(e=>{const d=e.created_at.slice(0,10);if(d in days)days[d]++});
+  const mx=Math.max(1,...Object.values(days)),rate=v.length?Math.round(a.length/v.length*100):0;
+  $("main").innerHTML=`<div class="cards"><div><b>${v.length}</b>Listing views (30 days)</div><div><b>${a.length}</b>Apply clicks</div><div><b>${rate}%</b>Apply rate</div><div><b>${s.length}</b>WhatsApp shares</div></div>
+  <div class="box" style="margin-top:12px"><b>Views, last 14 days</b><div style="display:flex;align-items:flex-end;gap:4px;height:110px;margin-top:10px">${Object.entries(days).map(([d,k])=>`<div title="${d}: ${k}" style="flex:1;background:var(--p);border-radius:4px 4px 0 0;height:${Math.max(3,k/mx*100)}%"></div>`).join("")}</div></div>
+  <div class="two"><div class="sc"><table><tr><th>Top listings</th><th>Views</th><th>Applies</th></tr>${top.map(([id,k])=>`<tr><td>${esc(names[id]||"(removed listing)")}</td><td>${k}</td><td>${ap[id]||0}</td></tr>`).join("")||'<tr><td colspan="3">No views yet.</td></tr>'}</table></div>
+  <div class="sc"><table><tr><th>Searches with no results</th><th>Times</th></tr>${tally(n,e=>(e.query||"").toLowerCase().trim()).map(([q,k])=>`<tr><td>${esc(q)}</td><td>${k}</td></tr>`).join("")||'<tr><td colspan="2">None yet.</td></tr>'}</table></div></div>
+  <p style="color:var(--mu);font-size:13px">Tip: the searches with no results show what people want that you have not posted yet. ${data.length>=5000?"Showing the latest 5,000 events only.":""}</p>`}
+async function viewTeam(){
+  const {data,error}=await sb.from("profiles").select("*").order("created_at");
+  if(error){$("main").innerHTML='<div class="err">'+esc(error.message)+"</div>";return}
+  $("main").innerHTML=`<div class="box">To add a team member: Supabase > Authentication > Add user, then set their role here.</div><div class="sc"><table><tr><th>Username</th><th>Role</th></tr>`+data.map(p=>`<tr><td>${esc(p.username)}</td><td><select onchange="setRole('${p.id}',this.value)" ${p.id==me.id?"disabled":""}>${opt(["owner","editor","moderator","employer","user"],p.role)}</select></td></tr>`).join("")+"</table></div>"}
+async function setRole(id,r){const x=await sb.from("profiles").update({role:r}).eq("id",id);if(x.error)return alert(x.error.message);await log("role:"+r,id)}
+async function dlSitemap(){
+  const {data,error}=await sb.from("opportunities").select("slug,published_at,created_at").eq("status","published");
+  if(error)return alert(error.message);
+  const base=SITE_URL.replace(/\/$/,"");
+  let x='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>'+base+'/</loc></url>\n';
+  data.forEach(o=>{x+='<url><loc>'+base+'/?o='+encodeURIComponent(o.slug)+'</loc><lastmod>'+(o.published_at||o.created_at||"").slice(0,10)+'</lastmod></url>\n'});
+  x+='</urlset>';
+  const l=document.createElement("a");l.href=URL.createObjectURL(new Blob([x],{type:"application/xml"}));l.download="sitemap.xml";l.click()}
+init();
+</script></body></html>
