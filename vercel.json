@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/", "has": [{ "type": "query", "key": "o" }], "destination": "/api/og" }
-  ],
-  "functions": {
-    "api/og.js": { "includeFiles": "index.html" }
-  }
-}
